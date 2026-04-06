@@ -1,0 +1,47 @@
+all:
+  vars:
+    # The generated inventory is assumed to be used from the clab host.
+    # Hence no http proxy should be used. Therefore we make sure the http
+    # module does not attempt using any global http proxy.
+    ansible_httpapi_use_proxy: false
+  children:
+    linux:
+      hosts:
+        clab-yw-Attacker:
+          ansible_host: 172.20.20.9
+        clab-yw-DMZ_IDS:
+          ansible_host: 172.20.20.20
+        clab-yw-DMZ_Switch:
+          ansible_host: 172.20.20.5
+        clab-yw-Database:
+          ansible_host: 172.20.20.10
+        clab-yw-External_FW:
+          ansible_host: 172.20.20.14
+        clab-yw-Flask_Webserver:
+          ansible_host: 172.20.20.4
+        clab-yw-Internal_Client1:
+          ansible_host: 172.20.20.8
+        clab-yw-Internal_Client2:
+          ansible_host: 172.20.20.16
+        clab-yw-Internal_FW:
+          ansible_host: 172.20.20.2
+        clab-yw-Internal_IDS:
+          ansible_host: 172.20.20.19
+        clab-yw-Internal_Switch:
+          ansible_host: 172.20.20.11
+        clab-yw-Proxy_WAF:
+          ansible_host: 172.20.20.17
+        clab-yw-SIEM_FW:
+          ansible_host: 172.20.20.3
+        clab-yw-elasticsearch:
+          ansible_host: 172.20.20.6
+        clab-yw-kibana:
+          ansible_host: 172.20.20.12
+        clab-yw-logstash:
+          ansible_host: 172.20.20.18
+        clab-yw-router-edge:
+          ansible_host: 172.20.20.15
+        clab-yw-router-internet:
+          ansible_host: 172.20.20.7
+        clab-yw-siem_pc:
+          ansible_host: 172.20.20.13

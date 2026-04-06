@@ -1,0 +1,262 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ABS_CONFIG_DIR="${SCRIPT_DIR}/config"
+
+source "${SCRIPT_DIR}/scripts/lib/logging.sh"
+source "${SCRIPT_DIR}/config/variables.sh"
+
+log_info "Generating topology file: ${TOPO_FILE}"
+
+cat << TOPOLOGY_EOF > "${SCRIPT_DIR}/topology/${TOPO_FILE}"
+name: ${LAB_NAME}
+mgmt:
+  network: ${MGMT_NETWORK}
+  ipv4-subnet: ${MGMT_SUBNET}
+
+topology:
+  nodes:
+    Internal_Switch:
+      kind: linux
+      image: ${IMG_FRR}
+      type: bridge
+      group: switch
+      cap-add:
+        - NET_ADMIN
+        - NET_RAW
+
+    Internal_Client1:
+      kind: linux
+      image: ${IMG_ALPINE}
+      type: host
+      group: server
+      cap-add:
+        - NET_ADMIN
+
+    Internal_Client2:
+      kind: linux
+      image: ${IMG_ALPINE}
+      type: host
+      group: server
+      cap-add:
+        - NET_ADMIN
+
+    siem_pc:
+      kind: linux
+      image: ${IMG_ALPINE}
+      type: host
+      group: server
+      cap-add:
+        - NET_ADMIN
+
+    Internal_FW:
+      kind: linux
+      image: ${IMG_UBUNTU}
+      type: host
+      group: firewall
+      cap-add:
+        - NET_ADMIN
+        - SYS_MODULE
+        - NET_RAW
+
+    Internal_IDS:
+      kind: linux
+      image: ${IMG_SURICATA}
+      group: ids
+      # 링크 생성 대기 + 배포 시 컨테이너 유지
+      startup-delay: 15
+      cmd: tail -f /dev/null
+      binds:
+        - ${ABS_CONFIG_DIR}/suricata/suricata.yml:/etc/suricata/suricata.yml:ro
+        - ${ABS_CONFIG_DIR}/suricata/rules:/var/lib/suricata/rules:ro
+        - ${ABS_CONFIG_DIR}/suricata/logs-internal:/var/log/suricata:rw
+      cap-add:
+        - NET_ADMIN
+        - NET_RAW
+
+    DMZ_Switch:
+      kind: linux
+      image: ${IMG_FRR}
+      type: bridge
+      group: switch
+      cap-add:
+        - NET_ADMIN
+        - NET_RAW
+
+    Flask_Webserver:
+      kind: linux
+      image: ${IMG_UBUNTU}
+      group: server
+      cap-add:
+        - NET_ADMIN
+
+    Proxy_WAF:
+      kind: linux
+      image: ${IMG_MODSECURITY}
+      group: firewall
+      ports:
+        - "8080:8080"
+      env:
+        MODSEC_AUDIT_ENGINE: "On"
+        MODSEC_AUDIT_LOG: "/var/log/audit/audit.log"
+        MODSEC_AUDIT_LOG_TYPE: "Serial"
+        BACKEND: "http://10.0.2.10:5000"
+        MODSEC_RULE_ENGINE: "On"
+        PARANOIA: "2"
+      # 배포 시 컨테이너 유지, main.sh 에서 실제 서비스 시작
+      startup-delay: 10
+      cmd: tail -f /dev/null
+      binds:
+        - ${ABS_CONFIG_DIR}/webserver-details/server.crt:/etc/nginx/conf/server.crt:ro
+        - ${ABS_CONFIG_DIR}/webserver-details/server.key:/etc/nginx/conf/server.key:ro
+      cap-add:
+        - NET_ADMIN
+
+    Database:
+      kind: linux
+      image: ${IMG_POSTGRES}
+      group: server
+      env:
+        POSTGRES_USER: admin_user
+        POSTGRES_PASSWORD: securePassword123
+        POSTGRES_DB: mydatabase
+      binds:
+        - ${ABS_CONFIG_DIR}/db-init/init-users.sql:/docker-entrypoint-initdb.d/init-users.sql:ro
+      ports:
+        - "3636:5432"
+      cap-add:
+        - NET_ADMIN
+
+    DMZ_IDS:
+      kind: linux
+      image: ${IMG_SURICATA}
+      group: ids
+      # 링크 생성 대기 + 배포 시 컨테이너 유지
+      startup-delay: 15
+      cmd: tail -f /dev/null
+      binds:
+        - ${ABS_CONFIG_DIR}/suricata/suricata.yml:/etc/suricata/suricata.yml:ro
+        - ${ABS_CONFIG_DIR}/suricata/rules:/var/lib/suricata/rules:ro
+        - ${ABS_CONFIG_DIR}/suricata/logs-dmz:/var/log/suricata:rw
+      cap-add:
+        - NET_ADMIN
+        - NET_RAW
+
+    External_FW:
+      kind: linux
+      image: ${IMG_UBUNTU}
+      type: host
+      group: firewall
+      cap-add:
+        - NET_ADMIN
+        - SYS_MODULE
+        - NET_RAW
+
+    SIEM_FW:
+      kind: linux
+      image: ${IMG_UBUNTU}
+      type: host
+      group: firewall
+      cap-add:
+        - NET_ADMIN
+        - SYS_MODULE
+        - NET_RAW
+
+    elasticsearch:
+      kind: linux
+      image: ${IMG_ELASTICSEARCH}
+      group: siem
+      env:
+        discovery.type: single-node
+        xpack.security.enabled: "false"
+        ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+      ports:
+        - "9200:9200"
+      cap-add:
+        - NET_ADMIN
+
+    logstash:
+      kind: linux
+      image: ${IMG_LOGSTASH}
+      group: siem
+      startup-delay: 10
+      cmd: tail -f /dev/null
+      binds:
+        - ${ABS_CONFIG_DIR}/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:rw
+        - ${ABS_CONFIG_DIR}/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      env:
+        XPACK_MONITORING_ENABLED: "false"
+        LS_JAVA_OPTS: "-Xmx1g -Xms1g"
+      cap-add:
+        - NET_ADMIN
+
+    kibana:
+      kind: linux
+      image: ${IMG_KIBANA}
+      group: siem
+      env:
+        ELASTICSEARCH_HOSTS: "http://elasticsearch:9200"
+        SERVER_NAME: "kibana"
+        XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: "a7e4c9f2b8d3e1a6c5f8b2d9e4a7c1f3"
+        TELEMETRY_OPTIN: "false"
+      ports:
+        - "5601:5601"
+      cap-add:
+        - NET_ADMIN
+
+    router-edge:
+      kind: linux
+      image: ${IMG_FRR}
+      type: host
+      group: router
+      cap-add:
+        - NET_ADMIN
+        - NET_RAW
+
+    router-internet:
+      kind: linux
+      image: ${IMG_FRR}
+      type: host
+      group: router
+      cap-add:
+        - NET_ADMIN
+        - NET_RAW
+
+    Attacker:
+      kind: linux
+      image: ${IMG_KALI}
+      type: host
+      group: server
+      cap-add:
+        - NET_ADMIN
+
+  links:
+    - endpoints: ["Internal_Client1:eth1", "Internal_Switch:eth1"]
+    - endpoints: ["Internal_Client2:eth1", "Internal_Switch:eth2"]
+    - endpoints: ["Internal_Switch:eth3", "Internal_FW:eth1"]
+    - endpoints: ["Internal_Switch:eth4", "Internal_IDS:eth1"]
+    - endpoints: ["Internal_FW:eth2", "DMZ_Switch:eth1"]
+    - endpoints: ["Internal_FW:eth3", "External_FW:eth4"]
+    - endpoints: ["Internal_FW:eth4", "SIEM_FW:eth1"]
+    - endpoints: ["DMZ_Switch:eth2", "External_FW:eth1"]
+    - endpoints: ["DMZ_Switch:eth3", "Proxy_WAF:eth1"]
+    - endpoints: ["DMZ_Switch:eth4", "DMZ_IDS:eth1"]
+    - endpoints: ["Proxy_WAF:eth2", "Flask_Webserver:eth1"]
+    - endpoints: ["Proxy_WAF:eth3", "SIEM_FW:eth9"]
+    - endpoints: ["Flask_Webserver:eth2", "Database:eth1"]
+    - endpoints: ["DMZ_IDS:eth2", "SIEM_FW:eth7"]
+    - endpoints: ["Internal_IDS:eth2", "SIEM_FW:eth8"]
+    - endpoints: ["External_FW:eth2", "router-edge:eth2"]
+    - endpoints: ["External_FW:eth3", "SIEM_FW:eth2"]
+    - endpoints: ["SIEM_FW:eth3", "logstash:eth1"]
+    - endpoints: ["SIEM_FW:eth4", "elasticsearch:eth3"]
+    - endpoints: ["SIEM_FW:eth5", "kibana:eth2"]
+    - endpoints: ["SIEM_FW:eth6", "siem_pc:eth1"]
+    - endpoints: ["logstash:eth2", "elasticsearch:eth1"]
+    - endpoints: ["elasticsearch:eth2", "kibana:eth1"]
+    - endpoints: ["router-edge:eth1", "router-internet:eth2"]
+    - endpoints: ["router-internet:eth1", "Attacker:eth1"]
+TOPOLOGY_EOF
+
+log_ok "Topology file generated: ${SCRIPT_DIR}/topology/${TOPO_FILE}"

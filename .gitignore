@@ -1,0 +1,28 @@
+# logs
+config/suricata/logs-*/
+*.log
+*.json
+
+# binaries
+*.tar.gz
+*.rpm
+
+# temp
+*.bak
+*.pid
+
+# runtime data
+filebeat-8.10.0-linux-x86_64/
+logstash-config/
+logstash-fixed/
+logstash/
+suricata-lab.tar
+
+# containerlab generated files
+topology/fix-cmd.sh
+topology/fix-waf.sh
+topology/clab-MaJuVi/.tls/
+topology/clab-MaJuVi/ansible-inventory.yml
+topology/clab-MaJuVi/authorized_keys
+topology/clab-MaJuVi/nornir-simple-inventory.yml
+topology/clab-MaJuVi/topology-data.json
