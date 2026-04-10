@@ -13,10 +13,7 @@
 
 ---
 
-</div>
 
-> **Originally a university project** — Initially built as a graded assignment in system administration and network security.  
-> **Actively maintained** — Continued development driven by personal interest in security research and hands-on learning.
 
 
 ## Table of Contents
