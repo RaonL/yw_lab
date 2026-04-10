@@ -2,7 +2,6 @@
 
 # yw_lab – Enterprise Network Security Lab
 
-**Fully containerized enterprise network environment with DMZ architecture, multi-tier firewalls, Suricata IDS, and ELK SIEM stack — automated with Containerlab.**
 
 [![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://www.linux.org/)
 [![Docker](https://img.shields.io/badge/Docker-24.0%2B-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
